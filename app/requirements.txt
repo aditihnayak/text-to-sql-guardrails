@@ -4,3 +4,7 @@ sqlalchemy==2.0.35
 psycopg[binary]==3.2.3
 sentence-transformers==3.2.1
 numpy==2.1.2
+groq==0.30.0
+sqlparse==0.5.3
+python-dotenv==1.0.1
+pytest==8.4.1
