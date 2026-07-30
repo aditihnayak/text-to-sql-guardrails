@@ -13,9 +13,16 @@ class SqlGenerationResult(BaseModel):
     tables_used: list[str] = Field(description="Tables referenced in the query")
 
 
+class BackTranslationResult(BaseModel):
+    question: str = Field(description="The natural-language question this SQL query answers")
+
+
 class LLMClient(ABC):
     @abstractmethod
     def generate_sql(self, prompt: str) -> SqlGenerationResult: ...
+
+    @abstractmethod
+    def back_translate_sql(self, prompt: str) -> BackTranslationResult: ...
 
 
 class GroqLLMClient(LLMClient):
@@ -23,8 +30,9 @@ class GroqLLMClient(LLMClient):
         self.client = Groq(api_key=os.environ["GROQ_API_KEY"])
         self.model = model
 
-    def generate_sql(self, prompt: str) -> SqlGenerationResult:
-        schema = SqlGenerationResult.model_json_schema()
+    def _structured_call(self, prompt: str, schema_model: type[BaseModel]):
+        schema = schema_model.model_json_schema()
+        schema["additionalProperties"] = False
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -33,15 +41,21 @@ class GroqLLMClient(LLMClient):
             response_format={
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "sql_generation_result",
+                    "name": schema_model.__name__.lower(),
+                    "strict": True,
                     "schema": schema,
                 },
             },
         )
 
-        raw = response.choices[0].message.content
-        data = json.loads(raw)
-        return SqlGenerationResult.model_validate(data)
+        data = json.loads(response.choices[0].message.content)
+        return schema_model.model_validate(data)
+
+    def generate_sql(self, prompt: str) -> SqlGenerationResult:
+        return self._structured_call(prompt, SqlGenerationResult)
+
+    def back_translate_sql(self, prompt: str) -> BackTranslationResult:
+        return self._structured_call(prompt, BackTranslationResult)
 
 
 def get_llm_client() -> LLMClient:
