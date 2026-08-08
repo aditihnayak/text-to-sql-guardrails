@@ -3,15 +3,19 @@ services:
     image: postgres:16
     container_name: text2sql_db
     restart: unless-stopped
+
     environment:
       POSTGRES_USER: app_user
       POSTGRES_PASSWORD: app_password
       POSTGRES_DB: text2sql
+
     ports:
       - "5432:5432"
+
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app_user -d text2sql"]
       interval: 5s
@@ -38,6 +42,23 @@ services:
 
     volumes:
       - ./app:/code
+
+  frontend:
+    build: ./frontend
+    container_name: text2sql_frontend
+    restart: unless-stopped
+
+    environment:
+      API_BASE_URL: http://api:8000
+
+    ports:
+      - "8501:8501"
+
+    depends_on:
+      - api
+
+    volumes:
+      - ./frontend:/code
 
 volumes:
   pgdata:

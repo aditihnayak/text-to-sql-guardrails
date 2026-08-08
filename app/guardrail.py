@@ -22,17 +22,46 @@ def _inject_row_limit(sql: str, max_rows: int) -> str:
     return f"{stripped} LIMIT {max_rows};"
 
 
-def apply_guardrails(sql: str, max_rows: int = 1000, max_subquery_depth: int = 3) -> GuardrailResult:
-    validation: ValidationResult = validate_sql(sql, max_subquery_depth=max_subquery_depth)
+def apply_guardrails(
+    sql: str,
+    max_rows: int = 1000,
+    max_subquery_depth: int = 3,
+) -> GuardrailResult:
+    validation: ValidationResult = validate_sql(
+        sql,
+        max_subquery_depth=max_subquery_depth,
+    )
 
     if not validation.is_valid:
-        logger.warning("Blocked query. reason=%s sql=%s", validation.reason, sql)
-        return GuardrailResult(allowed=False, sql=sql, reason=validation.reason)
+        logger.warning(
+            "query_blocked",
+            extra={
+                "event": "query_blocked",
+                "reason": validation.reason,
+                "sql": sql,
+            },
+        )
+        return GuardrailResult(
+            allowed=False,
+            sql=sql,
+            reason=validation.reason,
+        )
 
     final_sql = sql
+
     if not _has_limit_clause(sql):
         final_sql = _inject_row_limit(sql, max_rows)
-        logger.info("Injected row limit. original_sql=%s final_sql=%s", sql, final_sql)
 
-    logger.info("Query allowed. sql=%s", final_sql)
-    return GuardrailResult(allowed=True, sql=final_sql)
+    logger.info(
+        "query_allowed",
+        extra={
+            "event": "query_allowed",
+            "sql": final_sql,
+            "row_limit_injected": final_sql != sql,
+        },
+    )
+
+    return GuardrailResult(
+        allowed=True,
+        sql=final_sql,
+    )
